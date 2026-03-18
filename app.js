@@ -15,11 +15,26 @@ let supabase = null;
 
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', async function() {
-    // 初始化 Supabase 客户端
-    supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
-    
     // 设置今天的日期为默认值
-    document.getElementById('recordDate').valueAsDate = new Date();
+    const dateInput = document.getElementById('recordDate');
+    if (dateInput) {
+        dateInput.valueAsDate = new Date();
+    }
+    
+    // 初始化 Supabase 客户端（带错误处理）
+    try {
+        console.log('检查 Supabase 库...', typeof window.supabase);
+        if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+            supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+            console.log('Supabase 初始化成功');
+        } else {
+            console.warn('Supabase 库未正确加载，将使用本地存储模式');
+            supabase = null;
+        }
+    } catch (err) {
+        console.error('Supabase 初始化失败:', err);
+        supabase = null;
+    }
     
     // 检查本地存储的登录状态
     const savedUser = localStorage.getItem('currentUser');
@@ -31,6 +46,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
 // ==================== 用户认证 ====================
 function selectUser(user) {
+    console.log('选择用户:', user);
     currentUser = user;
     
     // 更新UI
@@ -40,13 +56,24 @@ function selectUser(user) {
     });
     
     const selectedBtn = user === 'husband' ? document.getElementById('btnHusband') : document.getElementById('btnWife');
-    selectedBtn.classList.remove('border-gray-200');
-    selectedBtn.classList.add('border-purple-500', 'bg-purple-50');
+    if (selectedBtn) {
+        selectedBtn.classList.remove('border-gray-200');
+        selectedBtn.classList.add('border-purple-500', 'bg-purple-50');
+    }
 }
 
 async function login() {
-    const password = document.getElementById('passwordInput').value;
+    console.log('点击登录按钮');
+    const passwordInput = document.getElementById('passwordInput');
     const errorMsg = document.getElementById('loginError');
+    
+    if (!passwordInput || !errorMsg) {
+        console.error('找不到必要的DOM元素');
+        return;
+    }
+    
+    const password = passwordInput.value;
+    console.log('当前选择用户:', currentUser);
     
     if (!currentUser) {
         errorMsg.textContent = '请先选择用户';
@@ -90,6 +117,13 @@ async function showMainApp() {
 
 // ==================== 数据管理（Supabase）====================
 async function loadRecords() {
+    // 如果 Supabase 未初始化，直接加载本地数据
+    if (!supabase) {
+        console.log('Supabase 未初始化，使用本地存储模式');
+        loadFromLocal();
+        return;
+    }
+    
     try {
         showToast('正在同步数据...');
         
@@ -145,6 +179,40 @@ function loadFromLocal() {
     }
 }
 
+function saveToLocal(record) {
+    // 转换记录格式以兼容本地存储
+    const localRecord = {
+        id: Date.now(),
+        user: record.user_id,
+        date: record.date,
+        alipay: record.alipay,
+        wechat: record.wechat,
+        cash: record.cash,
+        expense: record.expense,
+        remark: record.remark,
+        createdAt: new Date().toISOString()
+    };
+    
+    // 检查是否已有同日期记录
+    const existingIndex = records.findIndex(r => r.date === record.date && r.user === record.user_id);
+    if (existingIndex >= 0) {
+        records[existingIndex] = localRecord;
+    } else {
+        records.push(localRecord);
+    }
+    
+    // 保存到 localStorage
+    localStorage.setItem('familyRecords', JSON.stringify(records));
+    
+    hideAddModal();
+    updateUI();
+    showToast('保存成功（本地模式）！');
+    
+    // 重置表单
+    document.getElementById('recordForm').reset();
+    document.getElementById('recordDate').valueAsDate = new Date();
+}
+
 async function saveRecord(event) {
     event.preventDefault();
     
@@ -157,6 +225,12 @@ async function saveRecord(event) {
         expense: parseFloat(document.getElementById('expense').value) || 0,
         remark: document.getElementById('remark').value || ''
     };
+    
+    // 如果 Supabase 未初始化，使用本地存储
+    if (!supabase) {
+        saveToLocal(record);
+        return;
+    }
     
     try {
         showToast('正在保存...');
@@ -202,6 +276,15 @@ async function saveRecord(event) {
 
 async function deleteRecord(id) {
     if (!confirm('确定要删除这条记录吗？')) return;
+    
+    // 如果 Supabase 未初始化，使用本地存储删除
+    if (!supabase) {
+        records = records.filter(r => r.id !== id);
+        localStorage.setItem('familyRecords', JSON.stringify(records));
+        updateUI();
+        showToast('删除成功');
+        return;
+    }
     
     try {
         showToast('正在删除...');
