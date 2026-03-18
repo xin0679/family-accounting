@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>家庭记账 - 摆摊收支</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .income-card {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        .expense-card {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+        .profit-card {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        }
+        .nav-item.active {
+            color: #667eea;
+        }
+        .nav-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 3px;
+            background: #667eea;
+            border-radius: 3px;
+        }
+        .input-field {
+            transition: all 0.3s ease;
+        }
+        .input-field:focus {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:active {
+            transform: scale(0.95);
+        }
+        .record-item {
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .stat-card {
+            transition: transform 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body class="pb-20">
+    <!-- 登录页面 -->
+    <div id="loginPage" class="min-h-screen flex items-center justify-center p-4">
+        <div class="glass-card p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-calculator text-3xl text-white"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800">家庭记账</h1>
+                <p class="text-gray-500 mt-2">摆摊收支管理系统</p>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">选择用户</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="selectUser('husband')" id="btnHusband" class="user-btn p-4 border-2 border-gray-200 rounded-xl text-center transition-all">
+                            <i class="fas fa-user text-2xl mb-2 text-blue-500"></i>
+                            <p class="font-medium">老公</p>
+                        </button>
+                        <button onclick="selectUser('wife')" id="btnWife" class="user-btn p-4 border-2 border-gray-200 rounded-xl text-center transition-all">
+                            <i class="fas fa-user text-2xl mb-2 text-pink-500"></i>
+                            <p class="font-medium">老婆</p>
+                        </button>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">家庭密码</label>
+                    <input type="password" id="passwordInput" placeholder="请输入家庭密码" 
+                           class="input-field w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:border-purple-500 text-center text-lg tracking-widest">
+                </div>
+                
+                <button onclick="login()" class="btn-primary w-full py-4 rounded-xl text-white font-semibold text-lg shadow-lg">
+                    登录
+                </button>
+                
+                <p id="loginError" class="text-red-500 text-center text-sm hidden">密码错误，请重试</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主应用页面 -->
+    <div id="mainApp" class="hidden">
+        <!-- 顶部用户信息 -->
+        <div class="bg-white/10 backdrop-blur-md text-white p-4">
+            <div class="flex justify-between items-center max-w-lg mx-auto">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                        <i id="userIcon" class="fas fa-user"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm opacity-80">当前用户</p>
+                        <p id="userName" class="font-semibold"></p>
+                    </div>
+                </div>
+                <button onclick="logout()" class="text-white/80 hover:text-white">
+                    <i class="fas fa-sign-out-alt text-xl"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="p-4 max-w-lg mx-auto">
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <div class="stat-card income-card text-white p-4 rounded-2xl">
+                    <p class="text-xs opacity-80 mb-1">今日收入</p>
+                    <p id="todayIncome" class="text-lg font-bold">¥0</p>
+                </div>
+                <div class="stat-card expense-card text-white p-4 rounded-2xl">
+                    <p class="text-xs opacity-80 mb-1">今日支出</p>
+                    <p id="todayExpense" class="text-lg font-bold">¥0</p>
+                </div>
+                <div class="stat-card profit-card text-white p-4 rounded-2xl">
+                    <p class="text-xs opacity-80 mb-1">今日盈亏</p>
+                    <p id="todayProfit" class="text-lg font-bold">¥0</p>
+                </div>
+            </div>
+
+            <!-- 视图切换标签 -->
+            <div class="glass-card p-1 rounded-xl mb-4">
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="switchView('daily')" id="tabDaily" class="tab-btn active py-2 px-4 rounded-lg text-sm font-medium transition-all">
+                        每日
+                    </button>
+                    <button onclick="switchView('weekly')" id="tabWeekly" class="tab-btn py-2 px-4 rounded-lg text-sm font-medium transition-all text-gray-600">
+                        每周
+                    </button>
+                    <button onclick="switchView('monthly')" id="tabMonthly" class="tab-btn py-2 px-4 rounded-lg text-sm font-medium transition-all text-gray-600">
+                        每月
+                    </button>
+                </div>
+            </div>
+
+            <!-- 添加按钮 -->
+            <button onclick="showAddModal()" class="btn-primary w-full py-4 rounded-xl text-white font-semibold shadow-lg mb-4 flex items-center justify-center space-x-2">
+                <i class="fas fa-plus"></i>
+                <span>记一笔</span>
+            </button>
+
+            <!-- 每日视图 -->
+            <div id="dailyView" class="view-section">
+                <div class="glass-card p-4 rounded-2xl">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-gray-800">收支记录</h3>
+                        <button onclick="exportToExcel()" class="text-purple-600 text-sm font-medium">
+                            <i class="fas fa-download mr-1"></i>导出Excel
+                        </button>
+                    </div>
+                    <div id="recordsList" class="space-y-3">
+                        <!-- 记录列表将在这里渲染 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 每周视图 -->
+            <div id="weeklyView" class="view-section hidden">
+                <div class="glass-card p-4 rounded-2xl">
+                    <h3 class="font-bold text-gray-800 mb-4">本周统计</h3>
+                    <div id="weeklyStats" class="space-y-3">
+                        <!-- 周统计数据将在这里渲染 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 每月视图 -->
+            <div id="monthlyView" class="view-section hidden">
+                <div class="glass-card p-4 rounded-2xl">
+                    <h3 class="font-bold text-gray-800 mb-4">本月统计</h3>
+                    <div id="monthlyStats" class="space-y-3">
+                        <!-- 月统计数据将在这里渲染 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 家庭总览 -->
+            <div class="glass-card p-4 rounded-2xl mt-4">
+                <h3 class="font-bold text-gray-800 mb-4">家庭总览</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-green-50 p-3 rounded-xl">
+                        <p class="text-xs text-green-600 mb-1">家庭总收入</p>
+                        <p id="familyIncome" class="text-lg font-bold text-green-700">¥0</p>
+                    </div>
+                    <div class="bg-red-50 p-3 rounded-xl">
+                        <p class="text-xs text-red-600 mb-1">家庭总支出</p>
+                        <p id="familyExpense" class="text-lg font-bold text-red-700">¥0</p>
+                    </div>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-xl mt-3">
+                    <div class="flex justify-between items-center">
+                        <p class="text-xs text-blue-600">家庭总盈亏</p>
+                        <p id="familyProfit" class="text-xl font-bold text-blue-700">¥0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加记录弹窗 -->
+    <div id="addModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-end z-50">
+        <div class="bg-white rounded-t-3xl w-full max-w-lg mx-auto p-6 animate-slide-up">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800">记一笔</h3>
+                <button onclick="hideAddModal()" class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                    <i class="fas fa-times text-gray-600"></i>
+                </button>
+            </div>
+            
+            <form id="recordForm" onsubmit="saveRecord(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">日期</label>
+                        <input type="date" id="recordDate" required
+                               class="input-field w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:border-purple-500">
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">支付宝</label>
+                            <input type="number" id="alipayIncome" placeholder="0" min="0" step="0.01"
+                                   class="input-field w-full px-3 py-3 border border-gray-300 rounded-xl focus:outline-none focus:border-purple-500 text-center">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">微信</label>
+                            <input type="number" id="wechatIncome" placeholder="0" min="0" step="0.01"
+                                   class="input-field w-full px-3 py-3 border border-gray-300 rounded-xl focus:outline-none focus:border-purple-500 text-center">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">现金</label>
+                            <input type="number" id="cashIncome" placeholder="0" min="0" step="0.01"
+                                   class="input-field w-full px-3 py-3 border border-gray-300 rounded-xl focus:outline-none focus:border-purple-500 text-center">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">支出</label>
+                        <input type="number" id="expense" placeholder="0" min="0" step="0.01"
+                               class="input-field w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:border-purple-500">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">备注</label>
+                        <textarea id="remark" rows="2" placeholder="记录买了什么..."
+                                  class="input-field w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:border-purple-500 resize-none"></textarea>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn-primary w-full py-4 rounded-xl text-white font-semibold shadow-lg mt-6">
+                    保存记录
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
