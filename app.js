@@ -45,50 +45,13 @@ document.addEventListener('DOMContentLoaded', async function() {
 });
 
 // ==================== 用户认证 ====================
-function selectUser(user) {
+async function selectUser(user) {
     console.log('选择用户:', user);
     currentUser = user;
     
-    // 更新UI
-    document.querySelectorAll('.user-btn').forEach(btn => {
-        btn.classList.remove('border-purple-500', 'bg-purple-50');
-        btn.classList.add('border-gray-200');
-    });
-    
-    const selectedBtn = user === 'husband' ? document.getElementById('btnHusband') : document.getElementById('btnWife');
-    if (selectedBtn) {
-        selectedBtn.classList.remove('border-gray-200');
-        selectedBtn.classList.add('border-purple-500', 'bg-purple-50');
-    }
-}
-
-async function login() {
-    console.log('点击登录按钮');
-    const passwordInput = document.getElementById('passwordInput');
-    const errorMsg = document.getElementById('loginError');
-    
-    if (!passwordInput || !errorMsg) {
-        console.error('找不到必要的DOM元素');
-        return;
-    }
-    
-    const password = passwordInput.value;
-    console.log('当前选择用户:', currentUser);
-    
-    if (!currentUser) {
-        errorMsg.textContent = '请先选择用户';
-        errorMsg.classList.remove('hidden');
-        return;
-    }
-    
-    if (password === CONFIG.FAMILY_PASSWORD) {
-        localStorage.setItem('currentUser', currentUser);
-        errorMsg.classList.add('hidden');
-        await showMainApp();
-    } else {
-        errorMsg.textContent = '密码错误，请重试';
-        errorMsg.classList.remove('hidden');
-    }
+    // 保存用户到本地存储并直接登录
+    localStorage.setItem('currentUser', currentUser);
+    await showMainApp();
 }
 
 function logout() {
@@ -96,7 +59,6 @@ function logout() {
     localStorage.removeItem('currentUser');
     document.getElementById('loginPage').classList.remove('hidden');
     document.getElementById('mainApp').classList.add('hidden');
-    document.getElementById('passwordInput').value = '';
 }
 
 async function showMainApp() {
