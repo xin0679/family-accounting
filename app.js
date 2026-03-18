@@ -46,12 +46,41 @@ document.addEventListener('DOMContentLoaded', async function() {
 
 // ==================== 用户认证 ====================
 async function selectUser(user) {
+    console.log('========== 选择用户开始 ==========');
     console.log('选择用户:', user);
-    currentUser = user;
     
-    // 保存用户到本地存储并直接登录
-    localStorage.setItem('currentUser', currentUser);
-    await showMainApp();
+    try {
+        currentUser = user;
+        
+        // 保存用户到本地存储
+        localStorage.setItem('currentUser', currentUser);
+        console.log('用户已保存到本地存储');
+        
+        // 显示加载状态
+        const btn = user === 'husband' ? document.getElementById('btnHusband') : document.getElementById('btnWife');
+        if (btn) {
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin text-2xl mb-2"></i><p class="font-medium">加载中...</p>';
+        }
+        
+        // 进入主应用
+        await showMainApp();
+        console.log('========== 选择用户成功 ==========');
+    } catch (error) {
+        console.error('========== 选择用户失败 ==========');
+        console.error('错误信息:', error.message);
+        console.error('错误堆栈:', error.stack);
+        alert('登录失败: ' + error.message);
+        
+        // 恢复按钮状态
+        const btnHusband = document.getElementById('btnHusband');
+        const btnWife = document.getElementById('btnWife');
+        if (btnHusband) {
+            btnHusband.innerHTML = '<i class="fas fa-user text-3xl mb-3 text-blue-500"></i><p class="font-bold text-lg">老公</p><p class="text-sm text-gray-500 mt-1">点击进入</p>';
+        }
+        if (btnWife) {
+            btnWife.innerHTML = '<i class="fas fa-user text-3xl mb-3 text-pink-500"></i><p class="font-bold text-lg">老婆</p><p class="text-sm text-gray-500 mt-1">点击进入</p>';
+        }
+    }
 }
 
 function logout() {
@@ -62,19 +91,42 @@ function logout() {
 }
 
 async function showMainApp() {
-    document.getElementById('loginPage').classList.add('hidden');
-    document.getElementById('mainApp').classList.remove('hidden');
+    console.log('显示主应用页面...');
     
-    // 设置用户信息
-    const userName = currentUser === 'husband' ? '老公' : '老婆';
-    const userIcon = currentUser === 'husband' ? 'fa-user' : 'fa-user';
-    const userColor = currentUser === 'husband' ? 'text-blue-500' : 'text-pink-500';
-    
-    document.getElementById('userName').textContent = userName;
-    document.getElementById('userIcon').className = `fas ${userIcon} ${userColor}`;
-    
-    // 加载数据
-    await loadRecords();
+    try {
+        // 获取DOM元素
+        const loginPage = document.getElementById('loginPage');
+        const mainApp = document.getElementById('mainApp');
+        const userNameEl = document.getElementById('userName');
+        const userIconEl = document.getElementById('userIcon');
+        
+        // 检查元素是否存在
+        if (!loginPage) throw new Error('找不到 loginPage 元素');
+        if (!mainApp) throw new Error('找不到 mainApp 元素');
+        if (!userNameEl) throw new Error('找不到 userName 元素');
+        if (!userIconEl) throw new Error('找不到 userIcon 元素');
+        
+        // 切换页面显示
+        loginPage.classList.add('hidden');
+        mainApp.classList.remove('hidden');
+        console.log('页面切换成功');
+        
+        // 设置用户信息
+        const userName = currentUser === 'husband' ? '老公' : '老婆';
+        const userColor = currentUser === 'husband' ? 'text-blue-500' : 'text-pink-500';
+        
+        userNameEl.textContent = userName;
+        userIconEl.className = `fas fa-user ${userColor}`;
+        console.log('用户信息设置成功:', userName);
+        
+        // 加载数据
+        await loadRecords();
+        console.log('数据加载完成');
+    } catch (error) {
+        console.error('显示主应用失败:', error);
+        alert('页面加载失败: ' + error.message);
+        throw error;
+    }
 }
 
 // ==================== 数据管理（Supabase）====================
